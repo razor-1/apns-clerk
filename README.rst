@@ -1,5 +1,5 @@
-apns-client.
-====================================
+apns-clerk.
+===========
 
 Python client for `Apple Push Notification service (APNs) <https://developer.apple.com/library/mac/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/ApplePushService.html>`_.
 
