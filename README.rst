@@ -1,8 +1,17 @@
 apns-client.
 ====================================
+
 Python client for `Apple Push Notification service (APNs) <https://developer.apple.com/library/mac/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/ApplePushService.html>`_.
-Check `documentation <http://apns-client.readthedocs.org>`_ to learn how to use it.
-[TODO] own documentation for apns-clerk
+
+This project is forked from apns-client, as there was a tiny but severe problem with SSL handshake rendering the package to be unusable.
+For the time being please check for apns-client's `documentation <http://apns-client.readthedocs.org>`_ .
+
+
+Todo
+----
+
+- *[TODO] own documentation for apns-clerk*
+- *[TODO] proper attributions for previous work*
 
 
 Requirements
