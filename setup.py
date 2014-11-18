@@ -12,7 +12,7 @@ def read(filename):
 
 setup(
     name='apns-clerk',
-    version='0.1.0',
+    version='0.1.1',
     author='Aleksi Hoffman',
     author_email='aleksi@lekksi.com',
     url='https://bitbucket.org/aleksihoffman/apns-clerk',
