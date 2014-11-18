@@ -52,6 +52,8 @@ This library differs in the following design decisions:
 
 Changelog
 ---------
+*v0.1.1*
+    Imported changes from open apns-client pull requests. Thanks Jason Spafford, zhe li and neetu jain.
 *v0.1*
     Forked from apns-client and fixed SSL handshake error caused by Apple's SSLv3 deprecation
 
