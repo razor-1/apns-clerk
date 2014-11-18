@@ -119,7 +119,7 @@ class APNs(object):
                 con = session.new_connection("feedback_production", cert_string=db_certificate)
                 service = APNs(con)
                 try:
-                    # on any IO failure after successfull connection this generator
+                    # on any IO failure after successful connection this generator
                     # will simply stop iterating. you will pick the rest of the tokens
                     # during next feedback session.
                     for token, when in service.feedback():
@@ -153,7 +153,7 @@ class Message(object):
     """ The notification message. """
     # JSON serialization parameters. Assume UTF-8 by default.
     json_parameters = {
-        'separators': (',',':'),
+        'separators': (',', ':'),
         'ensure_ascii': False,
     }
     # Default expiry (1 day).
@@ -308,7 +308,7 @@ class Message(object):
         else:
             self._payload = None
             for key, val in six.iteritems(state):
-                if key in ('tokens', 'expiry', 'priority'): # already set
+                if key in ('tokens', 'expiry', 'priority'):  # already set
                     pass
                 elif key in ('alert', 'badge', 'sound', 'content_available'):
                     setattr(self, key, state[key])
@@ -422,11 +422,11 @@ class Batch(object):
             frame_len = 3*5 + len(tok) + len(self.payload) + 4 + 4 + 1 # 5 items, each 3 bytes prefix, then each item length
             fmt = ">BIBH{0}sBH{1}sBHIBHIBHB".format(len(tok), len(self.payload))
             message = pack(fmt, self.VERSION, frame_len,
-                    1, len(tok), tok,
-                    2, len(self.payload), self.payload,
-                    3, 4, idx,
-                    4, 4, self.expiry,
-                    5, 1, self.priority)
+                           1, len(tok), tok,
+                           2, len(self.payload), self.payload,
+                           3, 4, idx,
+                           4, 4, self.expiry,
+                           5, 1, self.priority)
 
             messages.append(message)
             buf += len(message)
@@ -445,18 +445,18 @@ class Batch(object):
 
 class Result(object):
     """ Result of send operation. """
-    # all rerror codes {code: (explanation, can retry?, include failed token?)}
+    # all error codes {code: (explanation, can retry?, include failed token?)}
     ERROR_CODES = {
         1: ('Processing error', True, True),
-        2: ('Missing device token', True, False), # looks like token was empty?
-        3: ('Missing topic', False, True), # topic is encoded in the certificate, looks like certificate is wrong. bail out.
-        4: ('Missing payload', False, True), # bail out, our message looks like empty
-        5: ('Invalid token size', True, False), # current token has wrong size, skip it and retry
-        6: ('Invalid topic size', False, True), # can not happen, we do not send topic, it is part of certificate. bail out.
-        7: ('Invalid payload size', False, True), # our payload is probably too big. bail out.
-        8: ('Invalid token', True, False), # our device token is broken, skipt it and retry
-        10: ('Shutdown', True, False), # server went into maintenance mode. reported token is the last success, skip it and retry.
-        None: ('Unknown', True, True), # unknown error, for sure we try again, but user should limit number of retries
+        2: ('Missing device token', True, False),  # looks like token was empty?
+        3: ('Missing topic', False, True),  # topic is encoded in the certificate, looks like certificate is wrong. bail out.
+        4: ('Missing payload', False, True),  # bail out, our message looks like empty
+        5: ('Invalid token size', True, False),  # current token has wrong size, skip it and retry
+        6: ('Invalid topic size', False, True),  # can not happen, we do not send topic, it is part of certificate. bail out.
+        7: ('Invalid payload size', False, True),  # our payload is probably too big. bail out.
+        8: ('Invalid token', True, False),  # our device token is broken, skip it and retry
+        10: ('Shutdown', True, False),  # server went into maintenance mode. reported token is the last success, skip it and retry.
+        None: ('Unknown', True, True),  # unknown error, for sure we try again, but user should limit number of retries
     }
 
     def __init__(self, message, failure=None):
@@ -472,7 +472,7 @@ class Result(object):
                 # one of "unknown" error codes
                 reason = None
 
-            expl, can_retry, include_failed = self.ERROR_CODES[reason]
+            explanation, can_retry, include_failed = self.ERROR_CODES[reason]
             if can_retry:
                 # may be None if failed on last token, which is skipped
                 self._retry_message = message.retry(failed_index, include_failed)
@@ -482,18 +482,18 @@ class Result(object):
                 # the server went into a maintenance mode and connection was closed.
                 # The reported token is the last one successfully sent.
                 pass
-            elif not include_failed: # report broken token, it was skipped
+            elif not include_failed:  # report broken token, it was skipped
                 self._failed = {
-                    message.tokens[failed_index]: (reason, expl)
+                    message.tokens[failed_index]: (reason, explanation)
                 }
-            else: # errors not related to broken token, global shit happened
+            else:  # errors not related to broken token, global shit happened
                 self._errors = [
-                    (reason, expl)
+                    (reason, explanation)
                 ]
 
             if LOG.isEnabledFor(logging.DEBUG):
                 LOG.debug("Batch of %d tokens failed: %s.%s%s",
-                          len(message.tokens), expl,
+                          len(message.tokens), explanation,
                           ' With errors.' if self._errors else '',
                           ' With failed tokens.' if self._failed else '')
 
