@@ -39,9 +39,10 @@ established once you actually use it. Example of sending a message::
     message = Message(["my", "device", "tokens"], alert="My message", badge=10)
 
     # Send the message.
-    srv = APNs(con)
+    service = APNs(con)
+
     try:
-        res = srv.send(message)
+        res = service.send(message)
     except:
         print "Can't connect to APNs, looks like network is down"
     else:
@@ -94,10 +95,10 @@ Example::
 
     # feedback needs no persistent connections.
     con = Session().new_connection("feedback_sandbox", cert_file="sandbox.pem")
-    srv = APNs(con)
+    service = APNs(con)
 
     try:
-        # on any IO failure after successfull connection this generator
+        # on any IO failure after successful connection this generator
         # will simply stop iterating. you will pick the rest of the tokens
         # during next feedback session.
         for token, when in service.feedback():
