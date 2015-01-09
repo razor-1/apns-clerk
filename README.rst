@@ -52,6 +52,8 @@ This library differs in the following design decisions:
 
 Changelog
 ---------
+*v0.1.2*
+    Removed not needed non ascii character which was causing problems with python < 3
 *v0.1.1*
     Imported changes from open apns-client pull requests. Thanks Jason Spafford, zhe li and neetu jain.
 *v0.1*
