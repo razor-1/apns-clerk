@@ -84,9 +84,14 @@ class APNs(object):
             :Returns:
                 :class:`Result` object with operation results.
         """
-        if len(message.tokens) == 0:
-            LOG.warning("Message without device tokens is ignored")
-            return Result(message)
+        if isinstance(message, Message):
+            if len(message.tokens) == 0:
+                LOG.warning("Message without device tokens is ignored")
+                return Result(message)
+        else:
+            if len(message) == 0:
+                LOG.warning("send with unknown parameter is ignored. It should be a Message or a list of Messages.")
+                return None
 
         status = self._connection.send(message)
         return Result(message, status)
@@ -203,9 +208,24 @@ class Message(object):
             tokens = [tokens]
 
         self._tokens = tokens
+        self._id_idx = {}
         self._payload = payload
         self.priority = int(priority)  # has to be integer because will be formatted into a binary
         self.expiry = self._get_expiry_timestamp(expiry)
+
+        # go through the tokens and make sure they are a valid length
+        tokenok = True
+        for token in tokens:
+            try:
+                tok = binascii.unhexlify(token)
+            except:
+                tokenok = False
+            else:
+                if len(tok) != 32:
+                    tokenok = False
+            finally:
+                if not tokenok:
+                    raise ValueError("Token %s is invalid. It must be exactly 32 bytes" % token)
 
         if payload is not None and hasattr(payload, "get") and payload.get("aps"):
             # try to reinit fields from the payload
@@ -378,6 +398,9 @@ class Message(object):
         if not include_failed:
             failed_index += 1
 
+        if self._id_idx.get(failed_index):
+            failed_index = self._id_idx.get(failed_index)
+
         failed = self._tokens[failed_index:]
         if not failed:
             # nothing to retry
@@ -386,6 +409,44 @@ class Message(object):
         state = self.__getstate__()
         state['tokens'] = failed
         return Message(**state)
+
+    def has_identifier(self, identifier):
+        if identifier in self._id_idx:
+            return True
+
+        return False
+
+    def get_token_for_identifier(self, identifier):
+        if not identifier in self._id_idx:
+            return None
+
+        tokenidx = self._id_idx[identifier]
+        return self._tokens[tokenidx]
+
+    def binserialize(self, identifier_base=0):
+        """ Serialize the message to binary. """
+            # Frame version. Do not change unless you update binary formats too.
+        VERSION = 2
+
+        messages = []
+        payload = self.get_json_payload()
+        assert isinstance(payload, six.binary_type), "Payload must be bytes/binary"
+
+        for idx, token in enumerate(self.tokens):
+            notification_id = idx + identifier_base
+            self._id_idx[notification_id] = idx
+            tok = binascii.unhexlify(token)
+            # |COMMAND|FRAME-LEN|{token}|{payload}|{id:4}|{expiry:4}|{priority:1}
+            frame_len = 3*5 + len(tok) + len(payload) + 4 + 4 + 1 # 5 items, each 3 bytes prefix, then each item length
+            fmt = ">BIBH{0}sBH{1}sBHIBHIBHB".format(len(tok), len(payload))
+            messages.append( pack(fmt, VERSION, frame_len,
+                           1, len(tok), tok,
+                           2, len(payload), payload,
+                           3, 4, notification_id,
+                           4, 4, self.expiry,
+                           5, 1, self.priority) )
+
+        return six.b("").join(messages)
 
 
 class Batch(object):
@@ -443,6 +504,45 @@ class Batch(object):
             yield sent, six.b("").join(messages)
 
 
+class BatchMessages(object):
+    """ Binary stream serializer for multiple Messages. """
+
+    def __init__(self, allmessages, packet_size):
+        """ New serializer.
+
+            :Arguments:
+                - allmessages (iterable): list of Message objects that will be sent
+                - packet_size (int): minimum chunk size in bytes.
+        """
+        self.allmessages = allmessages
+        self.packet_size = packet_size
+
+    def __iter__(self):
+        """ Iterate over messages """
+        messages = []
+        buf = 0
+        sent = 0
+        ctr = 0
+
+        for msg in self.allmessages:
+            binmsg = msg.binserialize(identifier_base=ctr)
+            messages.append(binmsg)
+            ctr += 1
+
+            buf += len(binmsg)
+            if buf >= self.packet_size:
+                chunk = six.b("").join(messages)
+                buf = 0
+                prev_sent = sent
+                sent += len(messages)
+                messages = []
+                yield prev_sent, chunk
+
+        # last small chunk
+        if messages:
+            yield sent, six.b("").join(messages)
+
+
 class Result(object):
     """ Result of send operation. """
     # all error codes {code: (explanation, can retry?, include failed token?)}
@@ -463,8 +563,17 @@ class Result(object):
         """ Result of send operation. """
         self.message = message
         self._retry_message = None
+        self._retry_messages = None
+
+        # this is a flag indicating whether we have one Message (False) or a list of Messages (True)
+        self._messages = False
+
         self._failed = {}
         self._errors = []
+
+        if not isinstance(message, Message):
+            # we assume now that we have a list of Messages
+            self._messages = True
 
         if failure is not None:
             reason, failed_index = failure
@@ -474,8 +583,24 @@ class Result(object):
 
             explanation, can_retry, include_failed = self.ERROR_CODES[reason]
             if can_retry:
-                # may be None if failed on last token, which is skipped
-                self._retry_message = message.retry(failed_index, include_failed)
+                if self._messages:
+                    # find the Message that has this identifier
+                    partials = None
+                    messages_idx = 0
+                    for msg in message:
+                        if msg.has_identifier(failed_index):
+                            partials = msg.retry(failed_index, include_failed)
+                            break
+                        messages_idx += 1
+
+                    if not partials:
+                        partials = []
+                    self._retry_messages = partials + message[messages_idx+1:]
+                    if not self._retry_messages:
+                        self._retry_messages = None
+                else:
+                    # may be None if failed on last token, which is skipped
+                    self._retry_message = message.retry(failed_index, include_failed)
 
             if reason == 10:
                 # the Shutdown reason is not really an error, it just indicates
@@ -483,16 +608,31 @@ class Result(object):
                 # The reported token is the last one successfully sent.
                 pass
             elif not include_failed:  # report broken token, it was skipped
-                self._failed = {
-                    message.tokens[failed_index]: (reason, explanation)
-                }
+                if self._messages:
+                    for msg in message:
+                        if msg.has_identifier(failed_index):
+                            tok = msg.get_token_for_identifier(failed_index)
+                            self._failed = {
+                                tok: (reason, explanation)
+                            }
+                            break
+                else:
+                    self._failed = {
+                        message.tokens[failed_index]: (reason, explanation)
+                    }
             else:  # errors not related to broken token, global shit happened
                 self._errors = [
                     (reason, explanation)
                 ]
 
             if LOG.isEnabledFor(logging.DEBUG):
-                LOG.debug("Batch of %d tokens failed: %s.%s%s",
+                if self._messages:
+                    LOG.debug("Batch of %d Messages failed: %s.%s%s",
+                          len(message), explanation,
+                          ' With errors.' if self._errors else '',
+                          ' With failed tokens.' if self._failed else '')
+                else:
+                    LOG.debug("Batch of %d tokens failed: %s.%s%s",
                           len(message.tokens), explanation,
                           ' With errors.' if self._errors else '',
                           ' With failed tokens.' if self._failed else '')
@@ -542,14 +682,20 @@ class Result(object):
                 error, so the before mentioned properties will be empty, while
                 ``needs_retry`` will be true.
         """
-        return self._retry_message is not None
+        if self._messages:
+            return self._retry_messages is not None
+        else:
+            return self._retry_message is not None
 
     def retry(self):
-        """ Returns :class:`Message` with device tokens that can be retried.
+        """ Returns :class:`Message` or a list of :class:`Message`s with device tokens that can be retried.
        
             Current APNs protocol bails out on first failure, so any device
             token after the failure should be retried. If failure was related
             to the token, then it will appear in :attr:`failed` set and will be
             in most cases skipped by the retry message.
         """
-        return self._retry_message
+        if self._messages:
+            return self._retry_messages
+        else:
+            return self._retry_message

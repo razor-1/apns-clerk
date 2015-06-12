@@ -17,6 +17,7 @@ import logging
 import binascii
 import datetime
 from struct import unpack
+from .apns import BatchMessages, Message
 
 # python 3 support
 import six
@@ -250,11 +251,20 @@ class Connection(object):
 
         # we return None, which is False, which forces python to re-raise on error
 
-    def send(self, message):
-        """ Send message. """
+    def send(self, messages):
+        """ Send messages. """
         # will raise exception if non-cached connection has been used
         with self:
-            batch = message.batch(self.session.write_buffer_size)
+            if isinstance(messages, Message):
+                batch = messages.batch(self.session.write_buffer_size)
+            else:
+                # messages should be iterable
+                try:
+                    batch = BatchMessages(messages, self.session.write_buffer_size)
+                except:
+                    LOG.warning("send expects a Message, or an iterable where each element is a Message")
+                    return None
+
             failed_after = None
             status = None
             total_sent = 0
@@ -280,6 +290,8 @@ class Connection(object):
                         # IO failure on subsequent writes, some of the tokens are
                         # sent, break on the beginning of this batch
                         failed_after = sent
+                        if LOG.isEnabledFor(logging.DEBUG):
+                            LOG.debug("got exception in connection.write. failed_after:"+str(failed_after))
                         break
 
                 # check for possibly arriving failure frame
@@ -293,6 +305,8 @@ class Connection(object):
                     # probably fail too. So fail early, possibly messing the
                     # first batch, but not everything
                     failed_after = sent
+                    if LOG.isEnabledFor(logging.DEBUG):
+                        LOG.debug("got exception in connection.peek. failed_after:"+str(failed_after))
                     break
                 else:
                     if ret is not None:
@@ -365,8 +379,8 @@ class Connection(object):
                             # complete status frame read, evaluate
                             if status[0] != 0:
                                 if LOG.isEnabledFor(logging.INFO):
-                                    LOG.info("Message send failed with status %r to address %r. Sent tokens: %s, bytes: %s",
-                                             status, self.address, len(message.tokens), total_sent)
+                                    LOG.info("Message send failed with status %r to address %r. Sent bytes: %s",
+                                             status, self.address, total_sent)
 
                                 # some shit had indeed happened
                                 self._close(terminate=True)
@@ -416,8 +430,8 @@ class Connection(object):
             # failure middle on the road, so according to Apple's manual
             # everything went OK. This protocol sucks.
             if LOG.isEnabledFor(logging.DEBUG):
-                LOG.debug("Message sent successfully to address %r. Sent tokens: %s, bytes: %s",
-                         self.address, len(message.tokens), total_sent)
+                LOG.debug("Message sent successfully to address %r. Sent bytes: %s",
+                         self.address, total_sent)
 
             # success, release connection for re-use if it was meant for reuse
             self._close(terminate=not self._reused)
