@@ -1,3 +1,6 @@
+2015-06-16 Aleksi Hoffman <aleksi@lekksi.com>
+    * Added support for sending multiple pushes with varying payload during one APNs connection, thanks Jon Snyder!
+
 2015-01-09 Aleksi Hoffman <aleksi@lekksi.com>
     * Removed not needed non ascii character which was causing problems with python < 3
 

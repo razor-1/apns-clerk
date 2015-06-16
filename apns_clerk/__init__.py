@@ -15,7 +15,7 @@
 
 
 __title__ = 'apns-clerk'
-__version__ = "0.1.2"
+__version__ = "0.2.0"
 __author__ = "Aleksi Hoffman"
 __contact__ = "aleksi@lekksi.com"
 __license__ = "Apache 2.0"

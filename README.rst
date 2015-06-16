@@ -7,13 +7,6 @@ This project is forked from apns-client, as there was a tiny but severe problem 
 For the time being please check for apns-client's `documentation <http://apns-client.readthedocs.org>`_ .
 
 
-Todo
-----
-
-- *[TODO] own documentation for apns-clerk*
-- *[TODO] proper attributions for previous work*
-
-
 Requirements
 ------------
 
@@ -29,6 +22,18 @@ we have decided to use a better OpenSSL wrapper and ``pyOpenSSL`` was the
 easiest to handle. ``pyOpenSSL`` is loaded on demand by standard networking
 back-end. If you use your own back-end, based on some other SSL implementation,
 then you don't have to install ``pyOpenSSL``.
+
+
+Changelog
+---------
+*v0.2.0*
+    Added support for sending multiple pushes with varying payload during one APNs connection, thanks Jon Snyder!
+*v0.1.2*
+    Removed not needed non ascii character which was causing problems with python < 3
+*v0.1.1*
+    Imported changes from open apns-client pull requests. Thanks Jason Spafford, zhe li and neetu jain.
+*v0.1*
+    Forked from apns-client and fixed SSL handshake error caused by Apple's SSLv3 deprecation
 
 
 Alternatives
@@ -50,12 +55,9 @@ This library differs in the following design decisions:
 - *Do not hard-code validation, let APNs fail*. This decision makes library
   a little bit more future proof.
 
-Changelog
----------
-*v0.1.2*
-    Removed not needed non ascii character which was causing problems with python < 3
-*v0.1.1*
-    Imported changes from open apns-client pull requests. Thanks Jason Spafford, zhe li and neetu jain.
-*v0.1*
-    Forked from apns-client and fixed SSL handshake error caused by Apple's SSLv3 deprecation
 
+Todo
+----
+
+- *[TODO] own documentation for apns-clerk*
+- *[TODO] proper attributions for previous work*

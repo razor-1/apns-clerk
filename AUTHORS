@@ -1,8 +1,8 @@
-apns-clerk is authored by Aleksi Hoffman
-apns-clerk is based on apns-client originally developed by Sardar Yumatov <ja.doma@gmail.com>
+apns-clerk is maintained by Aleksi Hoffman <aleksi@lekksi.com>
 
 The following authors have contributed to apns-client project prior of forking to apns-clerk:
-
+    * Sardar Yumatov <ja.doma@gmail.com>
+      The original package maintainer and developer
     * Tom Berger <tom.berger@gmail.com>
       The idea and patch for custom payload.
     * Matthew Crenshaw <sgt@squig.gs> and Doody Parizada
