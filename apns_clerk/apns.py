@@ -602,20 +602,27 @@ class Result(object):
                 reason = None
 
             explanation, can_retry, include_failed = self.ERROR_CODES[reason]
+
             if can_retry:
                 if self._messages:
                     # find the Message that has this identifier
                     partials = None
                     messages_idx = 0
+
                     for msg in message:
                         if msg.has_identifier(failed_index):
                             partials = msg.retry(failed_index, include_failed)
                             break
+
                         messages_idx += 1
 
                     if not partials:
                         partials = []
+                    elif isinstance(partials, Message):
+                        partials = [partials]
+
                     self._retry_messages = partials + message[messages_idx + 1:]
+
                     if not self._retry_messages:
                         self._retry_messages = None
                 else:

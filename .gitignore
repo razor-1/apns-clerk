@@ -2,3 +2,6 @@
 .idea
 dist/*
 apns_clerk.egg-info/*
+
+
+test/sandbox_certificate.pem

@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os.path
+
 if __name__ == '__main__':
-    import os.path
     import sys
 
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -34,10 +35,10 @@ from apns_clerk.apns import Result
 from apns_clerk.backends.dummy import Backend as DummyBackend
 
 
-VALID_TOKEN_ONE = "BAC0578AADBC56E676FBA2A73C18995C73D92196A9D6AE4F520E12E7105A97DA"
-VALID_TOKEN_TWO = "BAD0578AADBC56E676FBA2A73C18995C73D92196A9D6AE4F520E12E7105A97DA"
-VALID_TOKEN_THREE = "BAE0578AADBC56E676FBA2A73C18995C73D92196A9D6AE4F520E12E7105A97DA"
-INVALID_TOKEN_ONE = "ABBAABBA"
+VALID_TOKEN_ONE = "A" * 64
+VALID_TOKEN_TWO = "B" * 64
+VALID_TOKEN_THREE = "C" * 64
+INVALID_TOKEN_ONE = "ABBA" * 2
 INVALID_TOKEN_TWO = "A" * 63 + "V"
 
 
@@ -276,12 +277,20 @@ class APNsClerkResultTest(Python26Mixin, unittest.TestCase):
 
 
 class APNsDummyTest(Python26Mixin, unittest.TestCase):
-    """ Test APNs client with dummy backend. """
+    """ Test APNs client with sandbox backend. """
+    # connection = APNS_SESSION.get_connection(push_server, cert_file=cert_file)
+
+    def get_session(self, push=None, feedback=None):
+        backend = DummyBackend(push=push, feedback=feedback)
+
+        return Session(pool=backend)
+
+    def get_connection(self, session, address="push_production"):
+        return session.get_connection(address, cert_string="certificate")
 
     def test_send(self):
         # success, retry + include-failed, don't-retry + include-failed
-        backend = DummyBackend(push=(None, 1, 3))
-        session = Session(pool=backend)
+        session = self.get_session(push=(None, 1, 3))
 
         msg = Message(tokens=[VALID_TOKEN_ONE, VALID_TOKEN_TWO],
                       alert="my alert",
@@ -289,18 +298,19 @@ class APNsDummyTest(Python26Mixin, unittest.TestCase):
                       content_available=1,
                       my_extra=15)
 
-        push_con = session.get_connection("push_production", cert_string="certificate")
-        srv = APNs(push_con)
+        srv = APNs(self.get_connection(session))
         res = srv.send(msg)
+
         self.assertEqual(len(res.failed), 0)
         self.assertEqual(len(res.errors), 0)
         self.assertFalse(res.needs_retry())
 
-        push_con2 = session.get_connection("push_production", cert_string="certificate")
-        srv = APNs(push_con2)
+        srv = APNs(self.get_connection(session))
         self.assertEqual(session.pool.push_result_pos, 0)
+
         session.pool.push_result_pos += 1
         res = srv.send(msg)
+
         self.assertEqual(len(res.failed), 0)
         self.assertEqual(len(res.errors), 1)
         self.assertTrue(res.needs_retry())
@@ -308,9 +318,9 @@ class APNsDummyTest(Python26Mixin, unittest.TestCase):
         # indeed, we have used the cache
         self.assertEqual(session.pool.new_connections, 1)
 
-        push_con = session.new_connection("push_production", cert_string="certificate")
-        srv = APNs(push_con)
+        srv = APNs(self.get_connection(session))
         res = srv.send(msg)
+
         self.assertEqual(len(res.failed), 0)
         self.assertEqual(len(res.errors), 1)
         self.assertFalse(res.needs_retry())
@@ -330,20 +340,92 @@ class APNsDummyTest(Python26Mixin, unittest.TestCase):
                     more_extra=15)
         ]
 
-        push_con = session.get_connection("push_production", cert_string="certificate")
-        srv = APNs(push_con)
+        srv = APNs(self.get_connection(session))
         res = srv.send(messages)
         self.assertEqual(len(res.failed), 0)
         self.assertEqual(len(res.errors), 0)
         self.assertFalse(res.needs_retry())
 
     def test_feedback(self):
-        backend = DummyBackend(feedback=5)
-        session = Session(pool=backend)
-        feed_con = session.new_connection("feedback_production", cert_string="certificate")
-        srv = APNs(feed_con)
+        connection = self.get_connection(session=self.get_session(feedback=5),
+                                         address="feedback_production")
+
+        srv = APNs(connection)
 
         self.assertEqual(len(list(srv.feedback())), 5)
+
+
+class APNsSandboxTest(Python26Mixin, unittest.TestCase):
+    """
+    Test APNs client with sandbox backend.
+
+    Place the PEM certificate in the test folder and name it sandbox_certificate.pem
+    """
+    # TODO: Provide a easy way to test with valid tokens
+
+    def get_session(self):
+        return Session()
+
+    def get_connection(self, session, address="push_sandbox"):
+        return session.get_connection(address, cert_file=self._certificate_path())
+
+    def test_send(self):
+        if not self._certificate_available():
+            # Skip, no certificate available
+            return
+
+        session = self.get_session()
+
+        # Test with single message
+        msg = Message(tokens=[VALID_TOKEN_ONE, VALID_TOKEN_TWO],
+                      alert="my alert",
+                      badge=10,
+                      content_available=1,
+                      my_extra=15)
+
+        srv = APNs(self.get_connection(session))
+        res = srv.send(msg)
+
+        self.assertEqual(len(res.failed), 1)
+        self.assertEqual(len(res.errors), 0)
+        self.assertTrue(res.needs_retry())
+
+        # Test with multiple messages
+        messages = [
+            Message(tokens=[VALID_TOKEN_ONE, VALID_TOKEN_TWO],
+                    alert="bar alert",
+                    badge=4,
+                    my_extra=15),
+            Message(tokens=[VALID_TOKEN_THREE],
+                    alert="foo alert",
+                    badge=0,
+                    content_available=1,
+                    more_extra=15)
+        ]
+
+        srv = APNs(self.get_connection(session))
+        res = srv.send(messages)
+
+        self.assertEqual(len(res.failed), 1)
+        self.assertEqual(len(res.errors), 0)
+        self.assertTrue(res.needs_retry())
+
+    def test_feedback(self):
+        if not self._certificate_available():
+            # Skip, no certificate available
+            return
+
+        connection = self.get_connection(session=self.get_session(),
+                                         address="feedback_sandbox")
+        srv = APNs(connection)
+
+        self.assertEqual(len(list(srv.feedback())), 0)
+
+    def _certificate_path(self):
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), "sandbox_certificate.pem"))
+
+    def _certificate_available(self):
+        return os.path.isfile(self._certificate_path())
 
 
 if __name__ == '__main__':
