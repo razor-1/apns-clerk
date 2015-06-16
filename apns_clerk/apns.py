@@ -5,7 +5,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -230,11 +230,13 @@ class Message(object):
         if payload is not None and hasattr(payload, "get") and payload.get("aps"):
             # try to reinit fields from the payload
             aps = payload["aps"]
+
             self.alert = aps.get("alert")
             self.badge = aps.get("badge")
             self.sound = aps.get("sound")
             self.content_available = aps.get("content-available")
             self.extra = dict([(k, v) for (k, v) in six.iteritems(payload) if k != 'aps'])
+
         elif payload is None:
             # normal message initialization
             self.alert = alert
@@ -242,15 +244,19 @@ class Message(object):
             self.sound = sound
             self.content_available = content_available
             _extra = {}
+
             if extra:
                 _extra.update(extra)
+
             if extra_kwargs:
                 _extra.update(extra_kwargs)
+
             self.extra = _extra
+
             if 'aps' in self.extra:
                 raise ValueError("Extra payload data may not contain 'aps' key.")
-        # else: payload provided as unrecognized value, don't init fields,
-        # they will raise AttributeError on access
+                # else: payload provided as unrecognized value, don't init fields,
+                # they will raise AttributeError on access
 
     # override if you use funky expiry values
     def _get_expiry_timestamp(self, expiry):
@@ -307,8 +313,8 @@ class Message(object):
             }
 
         return dict([(key, getattr(self, key)) for key in ('tokens', 'alert', 'badge',
-                    'sound', 'content_available', 'expiry', 'priority', 'extra')])
-    
+                                                           'sound', 'content_available', 'expiry', 'priority', 'extra')])
+
     def __setstate__(self, state):
         """ Overwrite message state with given kwargs. """
         self._tokens = state['tokens']
@@ -318,6 +324,7 @@ class Message(object):
 
         if 'payload' in state:
             self._payload = state['payload']
+
             if hasattr(self._payload, "get") and self._payload.get("aps"):
                 aps = self._payload["aps"]
                 self.alert = aps.get("alert")
@@ -327,6 +334,7 @@ class Message(object):
                 self.extra = dict([(k, v) for (k, v) in six.iteritems(self._payload) if k != 'aps'])
         else:
             self._payload = None
+
             for key, val in six.iteritems(state):
                 if key in ('tokens', 'expiry', 'priority'):  # already set
                     pass
@@ -348,7 +356,7 @@ class Message(object):
         """ Returns the payload content as a dict or raw ``payload`` argument value. """
         if self._payload is not None:
             return self._payload
-        
+
         # in v.2 protocol no keys are required, but usually you specify
         # alert or content-available.
         aps = {}
@@ -368,7 +376,7 @@ class Message(object):
         ret = {
             'aps': aps,
         }
-        
+
         if self.extra:
             ret.update(self.extra)
 
@@ -377,6 +385,7 @@ class Message(object):
     def get_json_payload(self):
         """ Convert message to JSON payload, acceptable by APNs. Must return byte string. """
         payload = self.payload
+
         if not isinstance(payload, six.string_types) and not isinstance(payload, six.binary_type):
             payload = json.dumps(payload, **self.json_parameters)
 
@@ -390,6 +399,7 @@ class Message(object):
     def batch(self, packet_size):
         """ Returns binary serializer. """
         payload = self.get_json_payload()
+
         assert isinstance(payload, six.binary_type), "Payload must be bytes/binary"
         return Batch(self._tokens, payload, self.expiry, self.priority, packet_size)
 
@@ -402,12 +412,14 @@ class Message(object):
             failed_index = self._id_idx.get(failed_index)
 
         failed = self._tokens[failed_index:]
+
         if not failed:
             # nothing to retry
             return None
 
         state = self.__getstate__()
         state['tokens'] = failed
+
         return Message(**state)
 
     def has_identifier(self, identifier):
@@ -469,7 +481,7 @@ class Batch(object):
         self.expiry = expiry
         self.priority = priority
         self.packet_size = packet_size
-        
+
     def __iter__(self):
         """ Iterate over serialized chunks. """
         messages = []
@@ -480,8 +492,9 @@ class Batch(object):
         for idx, token in enumerate(self.tokens):
             tok = binascii.unhexlify(token)
             # |COMMAND|FRAME-LEN|{token}|{payload}|{id:4}|{expiry:4}|{priority:1}
-            frame_len = 3*5 + len(tok) + len(self.payload) + 4 + 4 + 1 # 5 items, each 3 bytes prefix, then each item length
+            frame_len = 3 * 5 + len(tok) + len(self.payload) + 4 + 4 + 1  # 5 items, each 3 bytes prefix, then each item length
             fmt = ">BIBH{0}sBH{1}sBHIBHIBHB".format(len(tok), len(self.payload))
+
             message = pack(fmt, self.VERSION, frame_len,
                            1, len(tok), tok,
                            2, len(self.payload), self.payload,
@@ -491,12 +504,14 @@ class Batch(object):
 
             messages.append(message)
             buf += len(message)
+
             if buf >= self.packet_size:
                 chunk = six.b("").join(messages)
                 buf = 0
                 prev_sent = sent
                 sent += len(messages)
                 messages = []
+
                 yield prev_sent, chunk
 
         # last small chunk

@@ -5,7 +5,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,10 +14,16 @@
 # limitations under the License.
 
 if __name__ == '__main__':
-    import os.path, sys
+    import os.path
+    import sys
+
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-import unittest, struct, pickle, json, datetime
+import unittest
+import struct
+import pickle
+import json
+import datetime
 
 # python 3 support
 import six
@@ -102,12 +108,15 @@ class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
         # custom
         s_message = self.message.__getstate__()
         s_raw_message = self.raw_message.__getstate__()
+
         # JSON/XML/etc and store/send
         s_message = json.dumps(s_message)
         s_raw_message = json.dumps(s_raw_message)
+
         # unserialize
         s_message = json.loads(s_message)
         s_raw_message = json.loads(s_raw_message)
+
         # reconstruct
         c_message = Message(**s_message)
         c_raw_message = Message(**s_raw_message)
@@ -121,6 +130,7 @@ class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
         empty_msg_size = len(Message(tokens=[], alert="a").get_json_payload()) - 1
 
         MAX_UTF8_SIZE = 3  # size of maximum utf8 encoded character in bytes
+
         chinese_str = (
             u'\u5187\u869a\u5487\u6b8f\u5cca\u9f46\u9248\u6935\u4ef1\u752a'
             u'\u67cc\u521e\u62b0\u530a\u6748\u9692\u5c6e\u653d\u588f\u6678')
@@ -130,9 +140,11 @@ class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
             empty_msg_size + len(chinese_str) * MAX_UTF8_SIZE)
 
         MAX_EMOJI_SIZE = 4  # size of maximum utf8 encoded character in bytes
+
         # emoji
-        emoji_str = (u'\U0001f601\U0001f603\U0001f638\U00002744')
+        emoji_str = u'\U0001f601\U0001f603\U0001f638\U00002744'
         emoji_msg_size = len(Message(tokens="", alert=emoji_str).get_json_payload())
+
         self.assertLessEqual(
             emoji_msg_size,
             empty_msg_size + len(emoji_str) * MAX_EMOJI_SIZE)
@@ -153,20 +165,25 @@ class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
 
     def check_message(self, batch, itr, msg):
         sent, data = batch
+
         # we send batches of 1 token size
         self.assertEqual(sent, itr)
+
         # |COMMAND|FRAME-LEN|{token}|{payload}|{id:4}|{expiry:4}|{priority:1}
         command, frame_len = struct.unpack(">BI", data[0:5])
+
         self.assertEqual(command, 2)
         self.assertEqual(frame_len, len(data) - 5)
-        
+
         off = 5
         restored = {}
+
         for itm in range(1, 6):
-            hdr, length = struct.unpack(">BH", data[off:(off+3)])
+            hdr, length = struct.unpack(">BH", data[off:(off + 3)])
             off += 3
-            value = data[off:(off+length)]
+            value = data[off:(off + length)]
             off += length
+
             if hdr == 1:
                 restored['token'] = binascii.hexlify(value).decode('ascii')
             elif hdr == 2:
@@ -239,7 +256,12 @@ class APNsDummyTest(Python26Mixin, unittest.TestCase):
         backend = DummyBackend(push=(None, 1, 3))
         session = Session(pool=backend)
 
-        msg = Message(["0123456789ABCDEF", "FEDCBA9876543210"], alert="my alert", badge=10, content_available=1, my_extra=15)
+        msg = Message(["0123456789ABCDEF", "FEDCBA9876543210"],
+                      alert="my alert",
+                      badge=10,
+                      content_available=1,
+                      my_extra=15)
+
         push_con = session.get_connection("push_production", cert_string="certificate")
         srv = APNs(push_con)
         res = srv.send(msg)
@@ -274,6 +296,7 @@ class APNsDummyTest(Python26Mixin, unittest.TestCase):
         session = Session(pool=backend)
         feed_con = session.new_connection("feedback_production", cert_string="certificate")
         srv = APNs(feed_con)
+
         self.assertEqual(len(list(srv.feedback())), 5)
 
 

@@ -5,7 +5,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,10 +14,14 @@
 # limitations under the License.
 
 if __name__ == '__main__':
-    import os.path, sys
+    import os.path
+    import sys
+
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-import unittest, datetime
+import unittest
+import datetime
+
 from apns_clerk import Session
 
 
@@ -55,7 +59,7 @@ h3nbwhSfx2WC3bN8Gs8G9pJV9LGiBY2y2zANYTrq7Mv3iVLkHY8BQIUYQuiUnT20
 8jeLSXRfZauDrVW5a8wGSJJLAyHGbXMAMV81z129xf8=
 -----END RSA PRIVATE KEY-----"""
 
-PRIVATE_PASS= "test"
+PRIVATE_PASS = "test"
 
 
 class Python26Mixin(object):
@@ -80,9 +84,11 @@ class StdIOBackendTest(Python26Mixin, unittest.TestCase):
     def test_locking(self):
         """ Test thread locking mechanism """
         lock = self.session.pool.create_lock()
+
         self.assertIsNotNone(lock)
         self.assertTrue(hasattr(lock, "acquire"))
         self.assertTrue(hasattr(lock, "release"))
+
         lock.acquire()
         lock.release()
 
@@ -101,7 +107,7 @@ class StdIOBackendTest(Python26Mixin, unittest.TestCase):
 
         self.assertIsNotNone(cert.get_context())
         self.assertEqual(cert, cert2)
-        
+
     def test_outdate(self):
         # we are not allowed to do any IO in tests, so no real connections.
         # however, it is good idea to test utility functions even with empty pool.
