@@ -65,7 +65,7 @@ class Python26Mixin(object):
                 raise self.failureException(msg or 'not isinstance(%r, %r)' % (first, second))
 
 
-class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
+class APNsClerkMessageTest(Python26Mixin, unittest.TestCase):
     """ Test Message API. """
 
     def setUp(self):
@@ -256,7 +256,7 @@ class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
             self.assertEqual(getattr(self.raw_message, key), getattr(r_raw_message, key))
 
 
-class APNsclerkResultTest(Python26Mixin, unittest.TestCase):
+class APNsClerkResultTest(Python26Mixin, unittest.TestCase):
     """ Test Result API. """
 
     def setUp(self):

@@ -5,7 +5,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,9 @@ import logging
 import binascii
 import datetime
 from struct import unpack
+
 from .apns import BatchMessages, Message
+
 
 # python 3 support
 import six
@@ -49,15 +51,15 @@ class Session(object):
     DEFAULT_READ_TIMEOUT = 20
     # Default timeout waiting for error response at the end message send operation.
     DEFAULT_READ_TAIL_TIMEOUT = 3
-    
+
     def __init__(self, pool="apns_clerk.backends.stdio",
-                       connect_timeout=DEFAULT_CONNECT_TIMEOUT,
-                       write_buffer_size=DEFAULT_WRITE_BUFFER_SIZE,
-                       write_timeout=DEFAULT_WRITE_TIMEOUT,
-                       read_buffer_size=DEFAULT_READ_BUFFER_SIZE,
-                       read_timeout=DEFAULT_READ_TIMEOUT,
-                       read_tail_timeout=DEFAULT_READ_TAIL_TIMEOUT,
-                       **pool_options):
+                 connect_timeout=DEFAULT_CONNECT_TIMEOUT,
+                 write_buffer_size=DEFAULT_WRITE_BUFFER_SIZE,
+                 write_timeout=DEFAULT_WRITE_TIMEOUT,
+                 read_buffer_size=DEFAULT_READ_BUFFER_SIZE,
+                 read_timeout=DEFAULT_READ_TIMEOUT,
+                 read_tail_timeout=DEFAULT_READ_TAIL_TIMEOUT,
+                 **pool_options):
         """ The front-end to the underlying connection pool. The purpose of this
             class is to hide the transport implementation that is being used for
             networking. Default implementation uses built-in python sockets and
@@ -73,7 +75,7 @@ class Session(object):
                 - read_tail_timeout (float): timeout for reading status frame after message is sent.
                 - pool_options (kwargs): passed as-is to the pool class on instantiation.
         """
-        # IO deafults
+        # IO defaults
         self.connect_timeout = connect_timeout
         self.write_buffer_size = write_buffer_size
         self.write_timeout = write_timeout
@@ -112,6 +114,7 @@ class Session(object):
         """ Maps address to (host, port) tuple. """
         if not isinstance(address, (list, tuple)):
             addr = cls.ADDRESSES.get(address)
+
             if addr is None:
                 raise ValueError("Unknown address mapping: {0}".format(address))
 
@@ -139,7 +142,7 @@ class Session(object):
         address = self.get_address(address)
         return Connection(address, cert, self, use_cache=False)
 
-    def get_connection(self, address="push_sanbox", certificate=None, **cert_params):
+    def get_connection(self, address="push_sandbox", certificate=None, **cert_params):
         """ Obtain cached connection to APNs.
 
             Session caches connection descriptors, that remain open after use.
@@ -149,7 +152,7 @@ class Session(object):
             You can provide APNs address as ``(hostname, port)`` tuple or as
             one of the strings:
 
-                - push_sanbox -- ``("gateway.sandbox.push.apple.com", 2195)``, the default.
+                - push_sandbox -- ``("gateway.sandbox.push.apple.com", 2195)``, the default.
                 - push_production -- ``("gateway.push.apple.com", 2195)``
                 - feedback_sandbox -- ``("feedback.sandbox.push.apple.com", 2196)``
                 - feedback_production -- ``("feedback.push.apple.com", 2196)``
@@ -165,6 +168,7 @@ class Session(object):
             cert = self.pool.get_certificate(cert_params)
 
         address = self.get_address(address)
+
         return Connection(address, cert, self, use_cache=True)
 
     def outdate(self, delta):
@@ -226,8 +230,8 @@ class Connection(object):
             if LOG.isEnabledFor(logging.DEBUG):
                 LOG.debug("Entering networking session")
 
-            self._lock.acquire() # block until lock is given
-            self._open_connection() # can raise exception, bubblit up to the top
+            self._lock.acquire()  # block until lock is given
+            self._open_connection()  # can raise exception, bubblit up to the top
         except:
             self._lock.release()
             raise
@@ -249,7 +253,7 @@ class Connection(object):
         finally:
             self._lock.release()
 
-        # we return None, which is False, which forces python to re-raise on error
+            # we return None, which is False, which forces python to re-raise on error
 
     def send(self, messages):
         """ Send messages. """
@@ -269,6 +273,7 @@ class Connection(object):
             status = None
             total_sent = 0
             decoder = ResponseDecoder()
+
             for iteration, (sent, chunk) in enumerate(batch):
                 assert len(chunk) > 0
                 total_sent += len(chunk)
@@ -291,26 +296,30 @@ class Connection(object):
                         # sent, break on the beginning of this batch
                         failed_after = sent
                         if LOG.isEnabledFor(logging.DEBUG):
-                            LOG.debug("got exception in connection.write. failed_after:"+str(failed_after))
+                            LOG.debug("got exception in connection.write. failed_after:" + str(failed_after))
                         break
 
                 # check for possibly arriving failure frame
                 try:
                     # should either return sequence of bytes or None if read buffer
                     # is empty.
-                    ret = self._connection.peek(256) # status frame is 6 bytes
+                    ret = self._connection.peek(256)  # status frame is 6 bytes
+
                 except:
                     # Peek failed, which means our read operations fail
-                    # abnormaly. I don't like that and the final read will
+                    # abnormally. I don't like that and the final read will
                     # probably fail too. So fail early, possibly messing the
                     # first batch, but not everything
                     failed_after = sent
+
                     if LOG.isEnabledFor(logging.DEBUG):
-                        LOG.debug("got exception in connection.peek. failed_after:"+str(failed_after))
+                        LOG.debug("got exception in connection.peek. failed_after:" + str(failed_after))
+
                     break
                 else:
                     if ret is not None:
                         decoder.feed(ret)
+
                         # status is not None only if previous iteration got
                         # successful status, but it appears not to be the last
                         # chunk. this should not happen by APNs protocol, still
@@ -324,15 +333,17 @@ class Connection(object):
                         # bytes could be read without blocking. on next iteration
                         # or final blocking read we will get the rest of the bytes.
                         status = decoder.decode()
-                        if status is not None and status[0] != 0: # error detected
+
+                        if status is not None and status[0] != 0:  # error detected
                             if LOG.isEnabledFor(logging.INFO):
                                 LOG.info("Message send failed midway with status %r to address %r. Sent tokens: %s, bytes: %s",
                                          status, self.address, sent, total_sent)
 
                             # some shit had happened, response from APNs, bail out and prepare for retry
                             self._close(terminate=True)
+
                             return status
-                    # else: nothing in the read buffer, keep sending
+                            # else: nothing in the read buffer, keep sending
 
             # by this time we either stopped prematurely on IO error with
             # failed_after set or we finished all batches, possibly having
@@ -373,7 +384,7 @@ class Connection(object):
                             decoder.feed(ret)
                             status = decoder.decode()
                             if status is None:
-                                # we got bytes, but not enogugh for the status frame.
+                                # we got bytes, but not enough for the status frame.
                                 continue
 
                             # complete status frame read, evaluate
@@ -399,22 +410,24 @@ class Connection(object):
             # know this happened and treat the situation as if no frame was
             # received at all. APNs protocol sucks sooo much.
             if status is None and decoder._buf:
-                LOG.warning("Failed to read complete status frame from %r, but has read some bytes before. Probably read timeout %s is to short.",
-                            self.address, self.session.read_tail_timeout)
+                LOG.warning(
+                    "Failed to read complete status frame from %r, but has read some bytes before. Probably read timeout %s is to short.",
+                    self.address, self.session.read_tail_timeout)
 
                 # close connection, it is failing
                 self._close(terminate=True)
 
-            # normall successs scenario with success frame provided. never
+            # normal success scenario with success frame provided. never
             # happens according to APNs documentation (no status frame gets
             # sent on success), but can happen logically.
             if failed_after is None and status is not None and status[0] == 0:
                 # success, release connection for re-use if it was meant for reuse
                 self._close(terminate=not self._reused)
+
                 return status
 
             # everything looks like success, but it might be because read stream
-            # was closed or just timeouted. check write IO failure.
+            # was closed or just timed out. check write IO failure.
             if failed_after is not None:
                 if LOG.isEnabledFor(logging.INFO):
                     LOG.info("Message send failed midway with status %r to address %r. Sent tokens: %s, bytes: %s",
@@ -422,19 +435,21 @@ class Connection(object):
 
                 # close connection, it is failing
                 self._close(terminate=True)
-                return (255, failed_after + 1)
+
+                return 255, failed_after + 1
 
             # we have sent message to all target tokens and have waited for
-            # tail_timeout for any error reponse to arrive. Nothing arrived
+            # tail_timeout for any error response to arrive. Nothing arrived
             # (hopefully not because read error) and we did not fail with write
             # failure middle on the road, so according to Apple's manual
             # everything went OK. This protocol sucks.
             if LOG.isEnabledFor(logging.DEBUG):
                 LOG.debug("Message sent successfully to address %r. Sent bytes: %s",
-                         self.address, total_sent)
+                          self.address, total_sent)
 
             # success, release connection for re-use if it was meant for reuse
             self._close(terminate=not self._reused)
+
             return None
 
     def feedback(self):
@@ -454,6 +469,7 @@ class Connection(object):
             feedback = FeedbackDecoder()
             total_records = 0
             failed = io_exception is not None
+
             while data is not None:
                 feedback.feed(data)
                 # TODO: use yield from
@@ -474,7 +490,7 @@ class Connection(object):
             # there is no point to keep this connection open
             if LOG.isEnabledFor(logging.DEBUG):
                 LOG.debug("Feedback received %s records from address %r. Stopped %s",
-                         total_records, self.address, "by failure" if failed else "successfully")
+                          total_records, self.address, "by failure" if failed else "successfully")
 
             # always close feedback connection, preventing stale data
             self._close(terminate=True)
@@ -497,7 +513,7 @@ class Connection(object):
                 failed = True
 
         if not failed:
-            # OK, reset succeeded or this is a fresh new connetion
+            # OK, reset succeeded or this is a fresh new connection
             try:
                 return func(self._connection), None
             except Exception as exc:
@@ -518,12 +534,12 @@ class Connection(object):
         # will propagate to the outer most caller indicating severe network
         # errors.
         self._open_connection(by_failure=True)
+
         return self._ensuring_io(func)
 
     def _open_connection(self, by_failure=False):
         """ Request new connection handle from underlying pool. """
-        # use pool if caching is requested or we are ensuring connection with
-        # cache enabled.
+        # use pool if caching is requested or we are ensuring connection with cache enabled.
         if self.use_cache and (not by_failure or self.session.pool.use_cache_for_reconnects):
             if LOG.isEnabledFor(logging.DEBUG):
                 LOG.debug("Open cached connection to %r%s.", self.address, " by failure" if by_failure else "")
@@ -575,12 +591,14 @@ class ResponseDecoder(object):
         if len(buf) >= 6:
             ret = unpack(">BBI", buf[0:6])
             self._buf = []
+
             if len(buf) > 6:
                 # should normally not happen as there is always a single frame
                 self._buf.append(buf[6:])
 
             assert ret[0] == self.COMMAND, "Got unknown command from APNs: {0}. Looks like protocol has been changed.".format(ret[0])
-            return (ret[1], ret[2])
+
+            return ret[1], ret[2]
         else:
             self._buf = [buf]
 
@@ -602,18 +620,22 @@ class FeedbackDecoder(object):
         """ Returns generator over next set of decoded records. """
         buf = six.binary_type().join(self._buf)
         pos = 0
+
         while (pos + 6) < len(buf):
             timestamp, length = unpack(">IH", buf[pos:(pos + 6)])
+
             assert length > 0
 
             if (pos + 6 + length) <= len(buf):
                 token = binascii.hexlify(buf[(pos + 6):(pos + 6 + length)])
                 pos += 6 + length
+
                 yield token, timestamp
+
                 if pos == len(buf):
                     break
             else:
                 break
 
         # consume everything except suffix
-        self._buf=[buf[pos:]]
+        self._buf = [buf[pos:]]
