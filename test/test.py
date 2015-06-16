@@ -34,12 +34,20 @@ from apns_clerk.apns import Result
 from apns_clerk.backends.dummy import Backend as DummyBackend
 
 
+VALID_TOKEN_ONE = "BAC0578AADBC56E676FBA2A73C18995C73D92196A9D6AE4F520E12E7105A97DA"
+VALID_TOKEN_TWO = "BAD0578AADBC56E676FBA2A73C18995C73D92196A9D6AE4F520E12E7105A97DA"
+VALID_TOKEN_THREE = "BAE0578AADBC56E676FBA2A73C18995C73D92196A9D6AE4F520E12E7105A97DA"
+INVALID_TOKEN_ONE = "ABBAABBA"
+INVALID_TOKEN_TWO = "A" * 63 + "V"
+
+
 class Python26Mixin(object):
     """ Adds missing methods to test cases in Python 2.6 environment. """
 
     def assertLessEqual(self, first, second, msg=None):
         """ Fail if the two objects are unequal as determined by the '<=' operator. """
         parent = super(Python26Mixin, self)
+
         if hasattr(parent, 'assertLessEqual'):
             parent.assertLessEqual(first, second, msg)
         else:
@@ -49,6 +57,7 @@ class Python26Mixin(object):
     def assertIsInstance(self, first, second, msg=None):
         """ Fail if isinstance(first, second) does not evaluates to True. """
         parent = super(Python26Mixin, self)
+
         if hasattr(parent, 'assertIsInstance'):
             parent.assertIsInstance(first, second, msg)
         else:
@@ -61,9 +70,10 @@ class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
 
     def setUp(self):
         self.now = datetime.datetime.now()
+
         # Typical message
         self.message = Message(
-            "0123456789ABCDEF",
+            tokens=VALID_TOKEN_ONE,
             alert=u"Russian: \u0421\u0430\u0440\u0434\u0430\u0440",
             badge=10,
             sound="test.mp3",
@@ -72,9 +82,10 @@ class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
             priority=30,
             extra={'key': 'value'}
         )
+
         # Message with a custom payload
         self.raw_message = Message(
-            ["0123456789ABCDEF", "FEDCBA9876543210"],
+            tokens=[VALID_TOKEN_ONE, VALID_TOKEN_TWO],
             payload=self.message.payload,
             priority=5,
             expiry=datetime.timedelta(days=5)
@@ -82,15 +93,19 @@ class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
 
     def test_payload(self):
         payload = self.message.get_json_payload()
+
         self.assertIsInstance(payload, six.binary_type)
+
         unicode_src = payload.decode('utf-8')
         payload = json.loads(unicode_src)
+
         self.assertEqual(payload["aps"], {
             "alert": self.message.alert,
             "badge": self.message.badge,
             "sound": self.message.sound,
             "content-available": self.message.content_available
         })
+
         for k, v in self.message.extra.items():
             self.assertEqual(payload[k], v)
 
@@ -127,27 +142,39 @@ class APNsclerkMessageTest(Python26Mixin, unittest.TestCase):
 
     def test_non_ascii(self):
         # meta-data size. ensure 'alert' is included.
-        empty_msg_size = len(Message(tokens=[], alert="a").get_json_payload()) - 1
+        empty_msg_size = len(Message(tokens=[VALID_TOKEN_ONE], alert="a").get_json_payload()) - 1
 
-        MAX_UTF8_SIZE = 3  # size of maximum utf8 encoded character in bytes
+        max_utf8_size = 3  # size of maximum utf8 encoded character in bytes
 
         chinese_str = (
             u'\u5187\u869a\u5487\u6b8f\u5cca\u9f46\u9248\u6935\u4ef1\u752a'
             u'\u67cc\u521e\u62b0\u530a\u6748\u9692\u5c6e\u653d\u588f\u6678')
-        chinese_msg_size = len(Message(tokens=[], alert=chinese_str).get_json_payload())
-        self.assertLessEqual(
-            chinese_msg_size,
-            empty_msg_size + len(chinese_str) * MAX_UTF8_SIZE)
+        chinese_msg_size = len(Message(tokens=[VALID_TOKEN_ONE], alert=chinese_str).get_json_payload())
 
-        MAX_EMOJI_SIZE = 4  # size of maximum utf8 encoded character in bytes
+        self.assertLessEqual(chinese_msg_size, empty_msg_size + len(chinese_str) * max_utf8_size)
+
+        max_emoji_size = 4  # size of maximum utf8 encoded character in bytes
 
         # emoji
         emoji_str = u'\U0001f601\U0001f603\U0001f638\U00002744'
-        emoji_msg_size = len(Message(tokens="", alert=emoji_str).get_json_payload())
+        emoji_msg_size = len(Message(tokens=VALID_TOKEN_ONE, alert=emoji_str).get_json_payload())
 
         self.assertLessEqual(
             emoji_msg_size,
-            empty_msg_size + len(emoji_str) * MAX_EMOJI_SIZE)
+            empty_msg_size + len(emoji_str) * max_emoji_size)
+
+    def test_validate_tokens(self):
+        with self.assertRaises(ValueError):
+            Message(tokens="")
+
+        with self.assertRaises(ValueError):
+            Message(tokens=[""])
+
+        with self.assertRaises(ValueError):
+            Message(tokens=[VALID_TOKEN_ONE, INVALID_TOKEN_ONE])
+
+        with self.assertRaises(TypeError):
+            Message(tokens=[INVALID_TOKEN_TWO])
 
     def test_batch(self):
         # binary serialization in ridiculously small buffer =)
@@ -233,7 +260,7 @@ class APNsclerkResultTest(Python26Mixin, unittest.TestCase):
     """ Test Result API. """
 
     def setUp(self):
-        self.msg = Message(["0123456789ABCDEF", "FEDCBA9876543210"], alert="message")
+        self.msg = Message([VALID_TOKEN_ONE, VALID_TOKEN_TWO], alert="message")
 
     def test_result(self):
         for reason in Result.ERROR_CODES.keys():
@@ -256,7 +283,7 @@ class APNsDummyTest(Python26Mixin, unittest.TestCase):
         backend = DummyBackend(push=(None, 1, 3))
         session = Session(pool=backend)
 
-        msg = Message(["0123456789ABCDEF", "FEDCBA9876543210"],
+        msg = Message(tokens=[VALID_TOKEN_ONE, VALID_TOKEN_TWO],
                       alert="my alert",
                       badge=10,
                       content_available=1,
@@ -290,6 +317,25 @@ class APNsDummyTest(Python26Mixin, unittest.TestCase):
 
         # indeed, new connection, we haven't used the cache
         self.assertEqual(session.pool.new_connections, 2)
+
+        messages = [
+            Message(tokens=[VALID_TOKEN_ONE, VALID_TOKEN_TWO],
+                    alert="bar alert",
+                    badge=4,
+                    my_extra=15),
+            Message(tokens=[VALID_TOKEN_THREE],
+                    alert="foo alert",
+                    badge=0,
+                    content_available=1,
+                    more_extra=15)
+        ]
+
+        push_con = session.get_connection("push_production", cert_string="certificate")
+        srv = APNs(push_con)
+        res = srv.send(messages)
+        self.assertEqual(len(res.failed), 0)
+        self.assertEqual(len(res.errors), 0)
+        self.assertFalse(res.needs_retry())
 
     def test_feedback(self):
         backend = DummyBackend(feedback=5)

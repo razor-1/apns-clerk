@@ -203,29 +203,18 @@ class Message(object):
             # Raise an error if both `payload` and the more specific parameters are supplied.
             raise ValueError("Payload specified together with alert/badge/sound/content_available/extra.")
 
-        # single token is provided, wrap as list
+        # Single token is provided, wrap as list
         if isinstance(tokens, six.string_types) or isinstance(tokens, six.binary_type):
             tokens = [tokens]
+
+        # Validate tokens
+        self._validate_tokens(tokens)
 
         self._tokens = tokens
         self._id_idx = {}
         self._payload = payload
         self.priority = int(priority)  # has to be integer because will be formatted into a binary
         self.expiry = self._get_expiry_timestamp(expiry)
-
-        # go through the tokens and make sure they are a valid length
-        tokenok = True
-        for token in tokens:
-            try:
-                tok = binascii.unhexlify(token)
-            except:
-                tokenok = False
-            else:
-                if len(tok) != 32:
-                    tokenok = False
-            finally:
-                if not tokenok:
-                    raise ValueError("Token %s is invalid. It must be exactly 32 bytes" % token)
 
         if payload is not None and hasattr(payload, "get") and payload.get("aps"):
             # try to reinit fields from the payload
@@ -257,6 +246,16 @@ class Message(object):
                 raise ValueError("Extra payload data may not contain 'aps' key.")
                 # else: payload provided as unrecognized value, don't init fields,
                 # they will raise AttributeError on access
+
+    @staticmethod
+    def _validate_tokens(tokens):
+        for token in tokens:
+            # Raises if not a valid hex string
+            tok = binascii.unhexlify(token)
+
+            # Validate binary token length
+            if len(tok) != 32:
+                raise ValueError("Token %s is invalid. It must be exactly 32 bytes" % token)
 
     # override if you use funky expiry values
     def _get_expiry_timestamp(self, expiry):
@@ -401,6 +400,7 @@ class Message(object):
         payload = self.get_json_payload()
 
         assert isinstance(payload, six.binary_type), "Payload must be bytes/binary"
+
         return Batch(self._tokens, payload, self.expiry, self.priority, packet_size)
 
     def retry(self, failed_index, include_failed):
@@ -429,15 +429,16 @@ class Message(object):
         return False
 
     def get_token_for_identifier(self, identifier):
-        if not identifier in self._id_idx:
+        if identifier not in self._id_idx:
             return None
 
-        tokenidx = self._id_idx[identifier]
-        return self._tokens[tokenidx]
+        token_idx = self._id_idx[identifier]
+
+        return self._tokens[token_idx]
 
     def binserialize(self, identifier_base=0):
         """ Serialize the message to binary. """
-            # Frame version. Do not change unless you update binary formats too.
+        # Frame version. Do not change unless you update binary formats too.
         VERSION = 2
 
         messages = []
@@ -448,15 +449,17 @@ class Message(object):
             notification_id = idx + identifier_base
             self._id_idx[notification_id] = idx
             tok = binascii.unhexlify(token)
+
             # |COMMAND|FRAME-LEN|{token}|{payload}|{id:4}|{expiry:4}|{priority:1}
-            frame_len = 3*5 + len(tok) + len(payload) + 4 + 4 + 1 # 5 items, each 3 bytes prefix, then each item length
+            frame_len = 3 * 5 + len(tok) + len(payload) + 4 + 4 + 1  # 5 items, each 3 bytes prefix, then each item length
             fmt = ">BIBH{0}sBH{1}sBHIBHIBHB".format(len(tok), len(payload))
-            messages.append( pack(fmt, VERSION, frame_len,
-                           1, len(tok), tok,
-                           2, len(payload), payload,
-                           3, 4, notification_id,
-                           4, 4, self.expiry,
-                           5, 1, self.priority) )
+
+            messages.append(pack(fmt, VERSION, frame_len,
+                                 1, len(tok), tok,
+                                 2, len(payload), payload,
+                                 3, 4, notification_id,
+                                 4, 4, self.expiry,
+                                 5, 1, self.priority))
 
         return six.b("").join(messages)
 
@@ -522,14 +525,14 @@ class Batch(object):
 class BatchMessages(object):
     """ Binary stream serializer for multiple Messages. """
 
-    def __init__(self, allmessages, packet_size):
+    def __init__(self, all_messages, packet_size):
         """ New serializer.
 
             :Arguments:
-                - allmessages (iterable): list of Message objects that will be sent
+                - all_messages (iterable): list of Message objects that will be sent
                 - packet_size (int): minimum chunk size in bytes.
         """
-        self.allmessages = allmessages
+        self.all_messages = all_messages
         self.packet_size = packet_size
 
     def __iter__(self):
@@ -539,18 +542,20 @@ class BatchMessages(object):
         sent = 0
         ctr = 0
 
-        for msg in self.allmessages:
-            binmsg = msg.binserialize(identifier_base=ctr)
-            messages.append(binmsg)
+        for msg in self.all_messages:
+            bin_msg = msg.binserialize(identifier_base=ctr)
+            messages.append(bin_msg)
             ctr += 1
 
-            buf += len(binmsg)
+            buf += len(bin_msg)
+
             if buf >= self.packet_size:
                 chunk = six.b("").join(messages)
                 buf = 0
                 prev_sent = sent
                 sent += len(messages)
                 messages = []
+
                 yield prev_sent, chunk
 
         # last small chunk
@@ -610,7 +615,7 @@ class Result(object):
 
                     if not partials:
                         partials = []
-                    self._retry_messages = partials + message[messages_idx+1:]
+                    self._retry_messages = partials + message[messages_idx + 1:]
                     if not self._retry_messages:
                         self._retry_messages = None
                 else:
@@ -643,14 +648,14 @@ class Result(object):
             if LOG.isEnabledFor(logging.DEBUG):
                 if self._messages:
                     LOG.debug("Batch of %d Messages failed: %s.%s%s",
-                          len(message), explanation,
-                          ' With errors.' if self._errors else '',
-                          ' With failed tokens.' if self._failed else '')
+                              len(message), explanation,
+                              ' With errors.' if self._errors else '',
+                              ' With failed tokens.' if self._failed else '')
                 else:
                     LOG.debug("Batch of %d tokens failed: %s.%s%s",
-                          len(message.tokens), explanation,
-                          ' With errors.' if self._errors else '',
-                          ' With failed tokens.' if self._failed else '')
+                              len(message.tokens), explanation,
+                              ' With errors.' if self._errors else '',
+                              ' With failed tokens.' if self._failed else '')
 
     @property
     def errors(self):
