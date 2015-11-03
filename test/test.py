@@ -264,16 +264,22 @@ class APNsClerkResultTest(Python26Mixin, unittest.TestCase):
         self.msg = Message([VALID_TOKEN_ONE, VALID_TOKEN_TWO], alert="message")
 
     def test_result(self):
-        for reason in Result.ERROR_CODES.keys():
-            res = Result(self.msg, (reason, 0))
-            self.assertEqual(len(res.errors), int(reason in (1, 3, 4, 6, 7, None)))
-            self.assertEqual(len(res.failed), int(reason in (2, 5, 8)))
-            self.assertEqual(reason in (1, 2, 5, 8, 10, None), res.needs_retry())
+        for error_code in Result.ERROR_CODES.keys():
+            res = Result(self.msg, (error_code, 0))
+
+            self.assertEqual(len(res.errors), int(error_code in (1, 3, 4, 6, 7, None)))
+            self.assertEqual(len(res.failed), int(error_code in (2, 5, 8)))
+            self.assertEqual(error_code in (1, 2, 5, 8, 10, None), res.needs_retry())
 
             if res.needs_retry():
                 ret = res.retry()
                 # skip failed or successful token by Shutdown
-                self.assertEqual(len(ret.tokens), 2 - len(res.failed) - int(reason == 10))
+                self.assertEqual(len(ret.tokens), 2 - len(res.failed) - int(error_code == 10))
+
+        # Unknown error code explanation
+        res = Result(self.msg, (200, 0))
+
+        self.assertEqual("Unknown [code: 200]", res.errors[0][1])
 
 
 class APNsDummyTest(Python26Mixin, unittest.TestCase):

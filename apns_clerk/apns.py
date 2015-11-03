@@ -596,12 +596,9 @@ class Result(object):
             self._messages = True
 
         if failure is not None:
-            reason, failed_index = failure
-            if reason not in self.ERROR_CODES:
-                # one of "unknown" error codes
-                reason = None
+            error_code, failed_index = failure
 
-            explanation, can_retry, include_failed = self.ERROR_CODES[reason]
+            explanation, can_retry, include_failed = self._explain_error(error_code)
 
             if can_retry:
                 if self._messages:
@@ -625,31 +622,36 @@ class Result(object):
 
                     if not self._retry_messages:
                         self._retry_messages = None
+
                 else:
                     # may be None if failed on last token, which is skipped
                     self._retry_message = message.retry(failed_index, include_failed)
 
-            if reason == 10:
+            if error_code == 10:
                 # the Shutdown reason is not really an error, it just indicates
                 # the server went into a maintenance mode and connection was closed.
                 # The reported token is the last one successfully sent.
                 pass
+
             elif not include_failed:  # report broken token, it was skipped
                 if self._messages:
                     for msg in message:
                         if msg.has_identifier(failed_index):
                             tok = msg.get_token_for_identifier(failed_index)
+
                             self._failed = {
-                                tok: (reason, explanation)
+                                tok: (error_code, explanation)
                             }
+
                             break
                 else:
                     self._failed = {
-                        message.tokens[failed_index]: (reason, explanation)
+                        message.tokens[failed_index]: (error_code, explanation)
                     }
+
             else:  # errors not related to broken token, global shit happened
                 self._errors = [
-                    (reason, explanation)
+                    (error_code, explanation)
                 ]
 
             if LOG.isEnabledFor(logging.DEBUG):
@@ -679,6 +681,21 @@ class Result(object):
                 - ``(None, "Unknown")``, usually some kind of IO failure.
         """
         return self._errors
+
+    def _explain_error(self, error_code):
+        """
+        @type error_code: int
+        @rtype: (str, bool, bool)
+        """
+
+        if error_code in self.ERROR_CODES:
+            return self.ERROR_CODES[error_code]
+
+        # Handle unknown error code
+        explanation, can_retry, include_failed = self.ERROR_CODES[None]
+        explanation += " [code: {}]".format(error_code)
+
+        return explanation, can_retry, include_failed
 
     @property
     def failed(self):
