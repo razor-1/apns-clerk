@@ -164,19 +164,6 @@ class APNsClerkMessageTest(Python26Mixin, unittest.TestCase):
             emoji_msg_size,
             empty_msg_size + len(emoji_str) * max_emoji_size)
 
-    def test_validate_tokens(self):
-        with self.assertRaises(ValueError):
-            Message(tokens="")
-
-        with self.assertRaises(ValueError):
-            Message(tokens=[""])
-
-        with self.assertRaises(ValueError):
-            Message(tokens=[VALID_TOKEN_ONE, INVALID_TOKEN_ONE])
-
-        with self.assertRaises(TypeError):
-            Message(tokens=[INVALID_TOKEN_TWO])
-
     def test_batch(self):
         # binary serialization in ridiculously small buffer =)
         b_message = list(self.message.batch(10))
