@@ -43,7 +43,7 @@ class APNs(object):
 
     def send(self, message):
         """ Send the message.
-        
+
             The method will block until the whole message is sent. The method
             returns :class:`Result` object, which you can examine for possible
             errors and retry attempts.
@@ -104,7 +104,7 @@ class APNs(object):
             not available anymore, probably because application was
             uninstalled. You have to stop sending notifications to that device
             token unless it has been re-registered since reported timestamp.
-            
+
             Unlike sending the message, you should fetch the feedback using
             non-cached connection. Once whole feedback has been read, this
             method will automatically close the connection.
@@ -207,9 +207,6 @@ class Message(object):
         if isinstance(tokens, six.string_types) or isinstance(tokens, six.binary_type):
             tokens = [tokens]
 
-        # Validate tokens
-        self._validate_tokens(tokens)
-
         self._tokens = tokens
         self._id_idx = {}
         self._payload = payload
@@ -247,16 +244,6 @@ class Message(object):
                 # else: payload provided as unrecognized value, don't init fields,
                 # they will raise AttributeError on access
 
-    @staticmethod
-    def _validate_tokens(tokens):
-        for token in tokens:
-            # Raises if not a valid hex string
-            tok = binascii.unhexlify(token)
-
-            # Validate binary token length
-            if len(tok) != 32:
-                raise ValueError("Token %s is invalid. It must be exactly 32 bytes" % token)
-
     # override if you use funky expiry values
     def _get_expiry_timestamp(self, expiry):
         """ Convert expiry value to a timestamp (integer).
@@ -285,7 +272,7 @@ class Message(object):
 
             If you use ``pickle``, then simply pickle/unpickle the message object.
             If you use something else, like JSON, then::
-                
+
                 # obtain state dict from message
                 state = message.__getstate__()
                 # send/store the state
@@ -733,7 +720,7 @@ class Result(object):
 
     def retry(self):
         """ Returns :class:`Message` or a list of :class:`Message`s with device tokens that can be retried.
-       
+
             Current APNs protocol bails out on first failure, so any device
             token after the failure should be retried. If failure was related
             to the token, then it will appear in :attr:`failed` set and will be
