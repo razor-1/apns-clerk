@@ -1,3 +1,6 @@
+2019-03-12 Jon Snyder <snyder.jon@gmail.com>
+    * Use TLSv12 so that this works again
+
 2015-06-16 Aleksi Hoffman <aleksi@lekksi.com>
     * Added support for sending multiple pushes with varying payload during one APNs connection, thanks Jon Snyder!
 

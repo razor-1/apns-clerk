@@ -45,7 +45,7 @@ class Certificate(BaseCertificate):
         """
         Initialize and load certificate context.
         """
-        context = OpenSSL.SSL.Context(OpenSSL.SSL.TLSv1_METHOD)
+        context = OpenSSL.SSL.Context(OpenSSL.SSL.TLSv1_2_METHOD)
 
         if passphrase is not None and not isinstance(passphrase, six.binary_type):
             passphrase = six.b(passphrase)
