@@ -12,10 +12,10 @@ def read(filename):
 
 setup(
     name='apns-clerk',
-    version='0.2.0',
+    version='0.2.1',
     author='Aleksi Hoffman',
     author_email='aleksi@lekksi.com',
-    url='https://bitbucket.org/aleksihoffman/apns-clerk',
+    url='https://github.com/razor-1/apns-clerk.git',
     description='Python client for Apple Push Notification service (APNs)',
     long_description=read('README.rst'),
     packages=['apns_clerk', 'apns_clerk.backends'],
